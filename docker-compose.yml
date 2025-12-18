@@ -1,0 +1,78 @@
+version: "3.8"
+
+services:
+  llm-genie-service:
+    image: harbor.edgesync.cloud/nagarro-container-images/meta-llama3.2-1b-genie-on-qualcomm-hexagon:v1
+    container_name: meta-llama3.2-1b-genie-on-qualcomm-hexagon
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    env_file: ./.env
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        chmod -R +x /workspace/qnn/bin/aarch64-oe-linux-gcc11.2 || true
+        exec /bin/bash
+    labels:
+      maintainer: "Samir Singh <samir.singh@advantech.com>"
+      vendor: "Advantech"
+      version: "1.2"
+      description: "QCS6490 LLM Genie Edge AI Development Container (llama 3.2 1B)"
+    restart: always
+    volumes:
+      - /etc/xdg/weston:/etc/xdg/weston
+      - /usr/share/X11:/usr/share/X11
+      - /dev:/dev
+      - /dev/socket/weston:/dev/socket/weston
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/snpe-throughput-net-run:/usr/bin/snpe-throughput-net-run
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/snpe-platform-validator:/usr/bin/snpe-platform-validator
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/snpe-parallel-run:/usr/bin/snpe-parallel-run
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/snpe-net-run:/usr/bin/snpe-net-run
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/snpe-diagview:/usr/bin/snpe-diagview
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/qnn-net-run:/usr/bin/qnn-net-run
+      - /qnn/bin/aarch64-oe-linux-gcc11.2/qnn-platform-validator:/usr/bin/qnn-platform-validator
+
+      - ./api-service:/workspace/api-service
+      - ./start_services.sh:/workspace/start_services.sh
+      - ./wise-bench.sh:/workspace/wise-bench.sh
+      - ./.env:/workspace/.env
+
+      - ./model:/workspace/model
+
+    working_dir: /workspace
+    devices:
+      - /dev/fastrpc-cdsp-secure
+      - /dev/fastrpc-adsp-secure
+      - /dev/kgsl-3d0:/dev/kgsl-3d0
+      - /dev/dma_heap/system:/dev/dma_heap/system
+      - /dev/dma_heap/qcom,system:/dev/dma_heap/qcom,system
+      - /dev/dri/card0:/dev/dri/card0
+      - /dev/dri/renderD128:/dev/dri/renderD128
+      - /dev/fastrpc-cdsp:/dev/fastrpc-cdsp
+      - /dev/video32:/dev/video32
+      - /dev/video33:/dev/video33
+    environment:
+      - LD_LIBRARY_PATH=/workspace/qnn/lib/aarch64-oe-linux-gcc11.2
+      - ADSP_LIBRARY_PATH=/workspace/qnn/lib/hexagon-v68/unsigned
+      - PATH=/workspace/qnn/bin/aarch64-oe-linux-gcc11.2:$PATH
+
+  openweb-ui-service:
+    container_name: openweb-ui-service
+    image: ghcr.io/open-webui/open-webui:v0.6.5
+    network_mode: host
+    env_file: ./.env
+    environment:
+      OPENAI_API_BASE_URL: ${OPENAI_API_GENIE_BASE}
+      PORT: ${OPENWEBUI_PORT}
+      ENABLE_TAGS_GENERATION: ${ENABLE_TAGS_GENERATION}
+      ENABLE_TITLE_GENERATION: ${ENABLE_TITLE_GENERATION}
+    volumes:
+      - openwebui-data:/app/backend/data
+    depends_on:
+      - llm-genie-service
+    restart: always
+
+volumes:
+  openwebui-data:
+    driver: local
